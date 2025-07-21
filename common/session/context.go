@@ -196,31 +196,25 @@ func MitmServerNameFromContext(ctx context.Context) string {
 }
 
 func UserIDFromContext(ctx context.Context) string {
-	inbound := InboundFromContext(ctx)
-	if inbound == nil || inbound.User == nil {
-		return ""
-	}
-
-	if inbound.User.UUID != "" {
-		return inbound.User.UUID
-	}
-
-	if inbound.User.Id != "" {
-		return inbound.User.Id
-	}
-
-	return ""
+    inbound := InboundFromContext(ctx)
+    if inbound == nil || inbound.User == nil {
+        return ""
+    }
+    // اگر ایمیل موجود است، آن را برگردان
+    if inbound.User.Email != "" {
+        return inbound.User.Email
+    }
+    // یا اگر شناسه دیگری دارد، اینجا اضافه کن
+    return ""
 }
 
 func DeviceIDFromContext(ctx context.Context) string {
-	inbound := InboundFromContext(ctx)
-	if inbound == nil {
-		return ""
-	}
-	// فرض کن Source یه ساختار IP یا شناسه دستگاه است؛ اگر شناسه دستگاه دارید باید جایگزین کنید
-	if inbound.DeviceID != "" {
-		return inbound.DeviceID
-	}
-	return inbound.Source.String()
+    inbound := InboundFromContext(ctx)
+    if inbound == nil {
+        return ""
+    }
+    // مثلا اگر inbound.Source از نوع آدرس است
+    return inbound.Source.String()
 }
+
 
