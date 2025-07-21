@@ -7,12 +7,12 @@ import (
 	"github.com/xtls/xray-core/app/proxyman"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/errors"
-	"github.com/xtls/xray-core/common/net"
+	netx "github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/features/inbound"
-	"net"
+	netstd "net"
 )
 
 // Manager manages all inbound handlers.
@@ -161,7 +161,7 @@ type LimitedInboundHandler struct {
 }
 
 // HandleConnection هندلر اتصال، دستگاه‌ها را محدود می‌کند.
-func (h *LimitedInboundHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
+func (h *LimitedInboundHandler) HandleConnection(ctx context.Context, conn netstd.Conn) error {
 	// استخراج userID و deviceID (باید مطابق منطق پروژه پیاده‌سازی شود)
 	userID := session.UserIDFromContext(ctx)     // فرضی، متد خودت را جایگزین کن
 	deviceID := session.DeviceIDFromContext(ctx) // فرضی، مثلاً JA3 یا UUID
