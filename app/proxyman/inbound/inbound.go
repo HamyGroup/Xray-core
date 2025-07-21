@@ -226,7 +226,7 @@ func NewHandler(ctx context.Context, config *core.InboundHandlerConfig) (inbound
 		})
 	}
 	if streamSettings != nil && streamSettings.ProtocolName == "splithttp" {
-		ctx = session.ContextWithAllowedNetwork(ctx, net.Network_UDP)
+		ctx = session.ContextWithAllowedNetwork(ctx, netx.Network_UDP)
 	}
 
 	allocStrategy := receiverSettings.AllocationStrategy
