@@ -152,7 +152,7 @@ func (m *Manager) Close() error {
 	return nil
 }
 
-// LimitedInboundHandler محدودیت تعداد دستگاه را اعمال می‌کند.
+// LimitedInboundHandler محدودیت تعداد دستگاه را برای هر user اعمال می‌کند.
 type LimitedInboundHandler struct {
 	coreHandler inbound.Handler
 	mu          sync.Mutex
@@ -160,14 +160,14 @@ type LimitedInboundHandler struct {
 	maxDevices  int
 }
 
-// HandleConnection هندلر اتصال، دستگاه‌ها را محدود می‌کند.
+// HandleConnection هندلر اتصال که محدودیت تعداد دستگاه‌ها را اعمال می‌کند.
 func (h *LimitedInboundHandler) HandleConnection(ctx context.Context, conn netstd.Conn) error {
-	// استخراج userID و deviceID (باید مطابق منطق پروژه پیاده‌سازی شود)
-	userID := session.UserIDFromContext(ctx)     // فرضی، متد خودت را جایگزین کن
-	deviceID := session.DeviceIDFromContext(ctx) // فرضی، مثلاً JA3 یا UUID
+	// استخراج userID و deviceID (این متدها را متناسب با پروژه خودت جایگزین کن)
+	userID := session.UserIDFromContext(ctx)     // فرضی
+	deviceID := session.DeviceIDFromContext(ctx) // فرضی
 
 	if userID == "" || deviceID == "" {
-		// اگر اطلاعات کافی نیست، اتصال را ادامه بده
+		// اگر اطلاعات کاربر یا دستگاه نبود، بدون محدودیت ادامه بده
 		return h.coreHandler.HandleConnection(ctx, conn)
 	}
 
@@ -188,7 +188,7 @@ func (h *LimitedInboundHandler) HandleConnection(ctx context.Context, conn netst
 	return h.coreHandler.HandleConnection(ctx, conn)
 }
 
-// متدهای delegate شده
+// متدهای delegate به coreHandler
 
 func (h *LimitedInboundHandler) Start() error {
 	return h.coreHandler.Start()
@@ -202,7 +202,7 @@ func (h *LimitedInboundHandler) Tag() string {
 	return h.coreHandler.Tag()
 }
 
-// NewHandler creates a new inbound.Handler based on the given config.
+// NewHandler ساخت هندلر جدید با محدودیت دستگاه
 func NewHandler(ctx context.Context, config *core.InboundHandlerConfig) (inbound.Handler, error) {
 	rawReceiverSettings, err := config.ReceiverSettings.GetInstance()
 	if err != nil {
@@ -244,7 +244,7 @@ func NewHandler(ctx context.Context, config *core.InboundHandlerConfig) (inbound
 		return nil, err
 	}
 
-	// ساخت هندلر محدودکننده با حداکثر 3 دستگاه، عدد را تغییر بده
+	// مقدار maxDevices را به دلخواه تغییر بده
 	limitedHandler := &LimitedInboundHandler{
 		coreHandler: baseHandler,
 		userDevices: make(map[string]map[string]bool),
