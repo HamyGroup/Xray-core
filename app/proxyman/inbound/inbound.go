@@ -12,6 +12,7 @@ import (
 	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/features/inbound"
+	"net"
 )
 
 // Manager manages all inbound handlers.
@@ -95,7 +96,7 @@ func (m *Manager) ListHandlers(ctx context.Context) []inbound.Handler {
 	defer m.access.RUnlock()
 
 	var response []inbound.Handler
-	copy(m.untaggedHandler, response)
+	response = append(response, m.untaggedHandler...)
 
 	for _, v := range m.taggedHandlers {
 		response = append(response, v)
@@ -151,6 +152,56 @@ func (m *Manager) Close() error {
 	return nil
 }
 
+// LimitedInboundHandler محدودیت تعداد دستگاه را اعمال می‌کند.
+type LimitedInboundHandler struct {
+	coreHandler inbound.Handler
+	mu          sync.Mutex
+	userDevices map[string]map[string]bool // map[userID]map[deviceID]bool
+	maxDevices  int
+}
+
+// HandleConnection هندلر اتصال، دستگاه‌ها را محدود می‌کند.
+func (h *LimitedInboundHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
+	// استخراج userID و deviceID (باید مطابق منطق پروژه پیاده‌سازی شود)
+	userID := session.UserIDFromContext(ctx)     // فرضی، متد خودت را جایگزین کن
+	deviceID := session.DeviceIDFromContext(ctx) // فرضی، مثلاً JA3 یا UUID
+
+	if userID == "" || deviceID == "" {
+		// اگر اطلاعات کافی نیست، اتصال را ادامه بده
+		return h.coreHandler.HandleConnection(ctx, conn)
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, ok := h.userDevices[userID]; !ok {
+		h.userDevices[userID] = make(map[string]bool)
+	}
+
+	if !h.userDevices[userID][deviceID] {
+		if len(h.userDevices[userID]) >= h.maxDevices {
+			return errors.New("device limit exceeded for user " + userID)
+		}
+		h.userDevices[userID][deviceID] = true
+	}
+
+	return h.coreHandler.HandleConnection(ctx, conn)
+}
+
+// متدهای delegate شده
+
+func (h *LimitedInboundHandler) Start() error {
+	return h.coreHandler.Start()
+}
+
+func (h *LimitedInboundHandler) Close() error {
+	return h.coreHandler.Close()
+}
+
+func (h *LimitedInboundHandler) Tag() string {
+	return h.coreHandler.Tag()
+}
+
 // NewHandler creates a new inbound.Handler based on the given config.
 func NewHandler(ctx context.Context, config *core.InboundHandlerConfig) (inbound.Handler, error) {
 	rawReceiverSettings, err := config.ReceiverSettings.GetInstance()
@@ -179,14 +230,28 @@ func NewHandler(ctx context.Context, config *core.InboundHandlerConfig) (inbound
 	}
 
 	allocStrategy := receiverSettings.AllocationStrategy
+	var baseHandler inbound.Handler
+
 	if allocStrategy == nil || allocStrategy.Type == proxyman.AllocationStrategy_Always {
-		return NewAlwaysOnInboundHandler(ctx, tag, receiverSettings, proxySettings)
+		baseHandler, err = NewAlwaysOnInboundHandler(ctx, tag, receiverSettings, proxySettings)
+	} else if allocStrategy.Type == proxyman.AllocationStrategy_Random {
+		baseHandler, err = NewDynamicInboundHandler(ctx, tag, receiverSettings, proxySettings)
+	} else {
+		return nil, errors.New("unknown allocation strategy: ", receiverSettings.AllocationStrategy.Type).AtError()
 	}
 
-	if allocStrategy.Type == proxyman.AllocationStrategy_Random {
-		return NewDynamicInboundHandler(ctx, tag, receiverSettings, proxySettings)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("unknown allocation strategy: ", receiverSettings.AllocationStrategy.Type).AtError()
+
+	// ساخت هندلر محدودکننده با حداکثر 3 دستگاه، عدد را تغییر بده
+	limitedHandler := &LimitedInboundHandler{
+		coreHandler: baseHandler,
+		userDevices: make(map[string]map[string]bool),
+		maxDevices:  1,
+	}
+
+	return limitedHandler, nil
 }
 
 func init() {
